@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="format-detection" content="telephone=no" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+		<link rel="stylesheet" type="text/css" href="css/index.css" />
+		
+		<style>
+			button.smallbutton {
+				display:inline-block;
+				width:3.75em;
+				font-size:.5em;
+				letter-spacing:.1em;
+				height:8em;
+			}
+		</style>
+		
+    	<script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+    	<script type="text/javascript" charset="utf-8" src="js/Utils.js"></script>
+        <script type="text/javascript" charset="utf-8">
+			var canopyDirectory, settingsDirectory, settingsFileEntry;
+			var canvasMain, canvasUndo, canvasReset, canvasMask;
+			var contextMain, contextUndo, contextReset, contextMask;
+			var baseImage; //the untouched image being masked
+			var imgEntry; //the image's file entry
+			var points = []; //array of all the points to be analyzed
+			var sens = .2; //the default sensitivity
+			var scale = .7; //how much of the screen the image will take up
+			var dotSize=10; //default "mask brush" size
+			var defaultphoto = "NAME"; //default photo name
+			var autoskip, photoname, percent;
+			
+			var dotText="brush size(5-70):";
+			var sensText="sensit. (0-100):";
+			
+			// ----- Mask Colour Stuff -----
+			var colourOfMaskDec=16724940; //its hex value in decimal
+			var colourOfMaskR=255;
+			var colourOfMaskG=51;
+			var colourOfMaskB=204;
+			var dotColour = "#ff0000"; //what colour the "brush" is. #ff0000 is bright red
+			
+			document.addEventListener("deviceready",onDeviceReady,false);
+			
+    	function onDeviceReady() {
+    		screen.lockOrientation("landscape");
+				if(document.body.clientWidth > 1000)
+					document.getElementById("theBody").style.fontSize="x-large"; //scale em's properly on larger screens
+				getTheSettings();
+			}
+			
+			//fetches the app's current settings to get the default photo name, autoskip setting and
+				//set directory and file entries for faster access in other methods 
+			function getTheSettings() {
+				window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, gotFileSys, fail);
+    			function gotFileSys(fileSys) {
+    				fileSys.root.getDirectory("canopyApp", {create:false}, getTheDir, fail);
+    			}
+    			function getTheDir(directory) {
+    				canopyDirectory=directory;
+    				directory.getDirectory("settings", {create:true}, gotSettingsDir, fail);
+    			}
+    			function gotSettingsDir(dir) {
+    				settingsDirectory=dir;
+					dir.getFile("canopyAppSettings.txt", {create: true}, fileSuccess, fail);
+    			}
+				function fileSuccess(fileEntry) {
+					settingsFileEntry=fileEntry;
+					fileEntry.file(gotFile, fail);
+				}
+				function gotFile(file) {
+					var reader = new FileReader();
+					reader.onloadend = function(evt) {
+						var settings = evt.target.result;
+						autoskip = extractText("autoskip", settings); 
+						photoname = extractText("photoname", settings);
+						if (photoname == null || photoname == undefined || photoname == "")
+							photoname = defaultphoto;
+						if (autoskip == null || autoskip == undefined || autoskip == "")
+							autoskip = "n";
+						if (autoskip == "n" || localStorage.skip == "0") {
+							localStorage.skip = "1";
+							readyThePage();
+						}
+						else {
+							skipAnalysis();
+						}
+					};
+					reader.readAsText(file);
+				}
+			}
+			
+			//sets starting variables and functions
+			function readyThePage() {
+				getImage();
+				
+        		//document.getElementById("reset").onclick=function(){resetMask(dotSize);};
+				document.getElementById("sensDotText").innerText=dotText;
+				document.getElementById("processNext").onclick=function(){setMask();};
+				document.getElementById("sensDotSize").value=dotSize;
+			}
+			
+			//fetches the image we're working on -- the one specified by localStorage.imgName
+			function getImage() {
+				canopyDirectory.getFile(localStorage.imgName, {create: false}, imgSuccess, imgFail);
+				
+				function imgSuccess(img) {
+					imgEntry=img;
+					baseImage = new Image();
+					//baseImage.src = "img/testCanopy.jpg"; //for in-browser testing
+					baseImage.onload = setCanvasesAndContexts;
+					baseImage.src=img.fullPath;
+				}
+			}
+			
+			//prepares the canvases and contexts, sets up all the sizes and such
+			function setCanvasesAndContexts() {
+				document.getElementById("processNext").disabled=false;
+				document.getElementById("saveUndo").disabled=false;
+				document.getElementById("saveUndo").onclick=function(){skipAnalysis();};
+				document.getElementById("reset").disabled=false;
+				
+				document.getElementById("loader").className = "";
+				canvasMain = document.getElementById("canvas");
+				
+				resizeImage();
+				canvasMain.width = baseImage.width;
+				canvasMain.height = baseImage.height;
+				
+				canvasUndo = document.createElement('canvas');
+				canvasReset = document.createElement('canvas');
+				canvasMask = document.createElement('canvas');
+				canvasUndo.width = baseImage.width;
+				canvasUndo.height = baseImage.height;
+				canvasReset.width = baseImage.width;
+				canvasReset.height = baseImage.height;
+				canvasMask.width = baseImage.width;
+				canvasMask.height = baseImage.height;
+				
+				contextMain = canvasMain.getContext("2d");
+				contextUndo = canvasUndo.getContext("2d");
+				contextReset = canvasReset.getContext("2d");
+				contextMask = canvasReset.getContext("2d");
+				
+				contextMain.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height);
+				contextUndo.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height);
+				contextReset.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height);
+				contextMask.drawImage(baseImage, 0, 0, baseImage.width, baseImage.height);
+				
+				makeMask(dotSize);
+				
+				//make the image as big as possible according to the specified scale
+				function resizeImage() {
+					var maxWidth = document.body.clientWidth * scale; // Max width for the image
+					var maxHeight = document.body.clientHeight * scale;    // Max height for the image
+					var ratio = 0;  // Used for aspect ratio
+					var width = baseImage.width;    // Current image width
+					var height = baseImage.height;  // Current image height
+					// Check if the current width is larger than the max
+					if(width != maxWidth){
+						ratio = (maxWidth/3) / width;   // get ratio for scaling image
+						baseImage.width = maxWidth/3; // Set new width
+						baseImage.height = baseImage.height * ratio;  // Scale height based on ratio
+						height = height * ratio;    // Reset height to match scaled image
+						width = width * ratio;    // Reset width to match scaled image
+						
+						ratio = (maxWidth/2) / width;   // get ratio for scaling image
+						baseImage.width = maxWidth/2; // Set new width
+						baseImage.height = baseImage.height * ratio;  // Scale height based on ratio
+						height = height * ratio;    // Reset height to match scaled image
+						width = width * ratio;    // Reset width to match scaled image
+						
+						ratio = maxWidth / width;   // get ratio for scaling image
+						baseImage.width = maxWidth; // Set new width
+						baseImage.height = baseImage.height * ratio;  // Scale height based on ratio
+						height = height * ratio;    // Reset height to match scaled image
+						width = width * ratio;    // Reset width to match scaled image
+					}
+					// Check if current height is larger than max
+					if(height > maxHeight){
+						ratio = maxHeight / height; // get ratio for scaling image
+						baseImage.height = maxHeight;   // Set new height
+						baseImage.width = baseImage.width * ratio;    // Scale width based on ratio
+					}
+				}
+			}
+			
+			function makeMask(s) {
+				canvasMain.addEventListener("touchstart", onClicked, false);
+				//canvasMain.addEventListener('mousedown', onClicked, false); //for in-browser testing
+			}
+			function removeMask() {
+				canvasMain.removeEventListener("touchstart", onClicked);
+				//canvasMain.removeEventListener('mousedown', onClicked); //for in-browser testing
+			}
+			
+			//gets the x & y of the touch event, draws a box around it with the specified brush size
+			function onClicked(evt) {
+				var clickX = evt.targetTouches[0].pageX - canvasMain.offsetLeft;
+				var clickY = evt.targetTouches[0].pageY - canvasMain.offsetTop;
+				//var clickX = (evt.pageX - canvasMain.offsetLeft); //for browser testing
+				//var clickY = (evt.pageY - canvasMain.offsetTop);
+				
+				var dotX = clickX - (dotSize/2);
+				var dotY = clickY - (dotSize/2);
+				contextMain.rect(dotX,dotY,dotSize,dotSize);
+				contextMain.lineWidth=".1em";
+				contextMain.strokeStyle=dotColour;
+				contextMain.stroke();
+				putPointStart(clickX, clickY, dotSize);
+				
+				//starts putting points in the points array
+					//starts with the center pixel that the user touched, works out recursively with helper functions
+				function putPointStart(x, y, s) {
+					if (checkPoint(x,y)==0) {
+						pointInsert(x, y);
+						putPoint(x, y-1, 1, s, "up");
+						putPoint(x, y+1, 1, s, "down");
+						putPoint(x+1, y, 1, s, "right");
+						putPoint(x-1, y, 1, s, "left");
+					}
+					//sees if this point is already in the points array
+					function checkPoint(x, y) {
+						if (points.length==0) {return 0;}
+						for (var i=0; i<points.length; i++) {
+							if (points[i].x == x && points[i].y == y)
+								return 1;
+						}
+						return 0;
+					}
+					function putPoint(x, y, n, m, d) {
+						if (checkPoint(x,y)==0 && n<m && x>0 && y>0 && x<canvasMain.width && y<canvasMain.height) {
+							var newX, newY;
+							if (d=="up") {newX=x; newY=y-1;}
+							else if (d=="down") {newX=x; newY=y+1;}
+							else if (d=="left") {newX=x-1; newY=y;}
+							else if (d=="right") {newX=x+1; newY=y;}
+							else alert("Point Error: "+d);
+							pointInsert(x, y);
+							putPoint(newX, newY, n+1, m, d);
+						}
+					}
+					function pointInsert(a, b) {
+		    			var p = contextMask.getImageData(a, b, 1, 1).data; 
+		    			var hex = ("000000" + rgbToHex(p[0], p[1], p[2])).slice(-6);
+						var hex2=parseInt(hex, 16);
+						if(hex2!=colourOfMaskDec)
+							points.push({x:a, y:b, h:hex2});
+					}
+				}
+			}
+			
+			//resets the current mask and goes back to the touching screen 
+			function sensitiv2() {
+				sensitiv();
+				var imgUndo=contextUndo.getImageData(0,0,baseImage.width,baseImage.height);
+				contextMask.putImageData(imgUndo,0,0);
+				setMask();
+			}
+			
+			function resetMask(s) {
+				points = [];
+				makeMask(dotSize);
+			}
+			//gets the average colour of all the points in the points array, sets button functions up for the new page,
+				//backs up the canvas image in the undo canvas, disables touch events,
+				//uses the sensitivity setting to create an acceptable range of colours, uses this range
+				//along with the array of points to set the main canvas colours
+			function setMask() {
+				var ave=getAverage(points);
+				var imgUndo=contextMask.getImageData(0,0,baseImage.width,baseImage.height);
+				contextUndo.putImageData(imgUndo,0,0);
+				var imgData = actuallySetMask(ave);
+				contextMain.putImageData(imgData,0,0);
+				updateCanvas(canvasMain);
+				removeMask();
+				
+				var temp=sens*100;
+				temp=Math.round(temp);
+				
+				document.getElementById("maintext").innerHTML="adjust the sensitivity";
+				
+				document.getElementById("upButton").onclick=function(){sensChangeUp();};
+				document.getElementById("sensDotText").innerText=sensText;
+				document.getElementById("sensDotSize").onchange=function(){sensitiv2();};
+				document.getElementById("sensDotSize").value=temp;
+				document.getElementById("downButton").onclick=function(){sensChangeDown();};
+				
+				document.getElementById("processNext").onclick=function(){touchReady(imgData);};
+				document.getElementById("processNext").innerText="next";
+				document.getElementById("processNext").style.fontSize="1em";
+				document.getElementById("saveUndo").onclick=function(){undo2();};
+				document.getElementById("saveUndo").innerText="undo";
+				
+				function undo2() {
+					var imgUndo=contextUndo.getImageData(0,0,baseImage.width,baseImage.height);
+					var imgMask=contextMask.getImageData(0,0,baseImage.width,baseImage.height);
+					contextUndo.putImageData(imgMask,0,0);
+					touchReady(imgUndo);
+				}
+				
+				function actuallySetMask(col) {
+					var tolMin = col-(col*sens);
+					var tolMax = col+(col*sens);
+					var imgData=contextMask.getImageData(0,0,baseImage.width,baseImage.height);
+					for (var i=0;i<imgData.data.length;i+=4) {
+						var hex = ("000000" + rgbToHex(imgData.data[i], imgData.data[i+1], imgData.data[i+2])).slice(-6);
+						var hex2=parseInt(hex, 16);
+						if (hex2<tolMax && hex2>tolMin && hex2!=colourOfMaskDec) {
+							imgData.data[i]=colourOfMaskR;
+	  						imgData.data[i+1]=colourOfMaskG;
+							imgData.data[i+2]=colourOfMaskB;
+						}
+					}
+					return imgData;
+				}
+				function getAverage(p) {
+					var len = p.length;
+					var sum = 0;
+					for (var i=0; i<len; i++) {
+						if(p[i].h!=colourOfMaskDec)
+						sum+=p[i].h;
+					}
+					var ave = Math.round(sum/len);
+					return ave;
+				}
+			}
+			
+			//enables touch events, clears point array for the next batch, sets the mask and main canvases to setMask's return value,
+				//sets some button functions
+			function touchReady(imgData) {
+				points=[];
+				canvasMain.width=canvasMain.width;
+				contextMask.putImageData(imgData,0,0);
+				contextMain.putImageData(imgData,0,0);
+				makeMask(dotSize);
+				
+				document.getElementById("maintext").innerHTML="touch any unmasked canopy";
+				
+				document.getElementById("upButton").onclick=function(){dotChangeUp();};
+				document.getElementById("sensDotText").innerText=dotText;
+				document.getElementById("sensDotSize").onchange=function(){dotSizeChange();};
+				document.getElementById("sensDotSize").value=dotSize;
+				document.getElementById("downButton").onclick=function(){dotChangeDown();};
+				
+				document.getElementById("processNext").onclick=function(){setMask()};
+				document.getElementById("processNext").innerHTML="process<br>selection";
+				document.getElementById("processNext").style.fontSize=".5em";
+				document.getElementById("saveUndo").onclick=function(){finish()};
+				document.getElementById("saveUndo").innerText="save";
+				
+				//clears the point array, swaps the main/mask and undo canvases 
+				function undo() {
+					points = [];
+					var imgMain=contextMask.getImageData(0,0,baseImage.width,baseImage.height);
+					var imgUndo=contextUndo.getImageData(0,0,baseImage.width,baseImage.height);
+					contextMask.putImageData(imgUndo,0,0);
+					contextMain.putImageData(imgUndo,0,0);
+					contextUndo.putImageData(imgMain,0,0);
+				}
+			}
+			
+			//gets the percentage of masked coverage
+			function finish() {
+				var total = canvasMain.width * canvasMain.height;
+				var count = getCount();
+				var temp = (count/total)*100;
+				percent = temp.toFixed(3);
+				function getCount() {
+					var count=0;
+					var imgData=contextMask.getImageData(0,0,baseImage.width,baseImage.height);
+					for (var i=0;i<imgData.data.length;i+=4) {
+						var hex = ("000000" + rgbToHex(imgData.data[i], imgData.data[i+1], imgData.data[i+2])).slice(-6);
+						var hex2=parseInt(hex, 16);
+						if (hex2==colourOfMaskDec)
+							count++;
+					}
+					return count;
+				}
+				//alert("percent: "+percent+"%");
+				writeInfo(true);
+			}
+			
+			//fetches the info document, searches it for the current photo. if it's not found, it writes a new
+				//entry at the end of the file. if it's found, it overwrites the old entry.
+				//it also gets the GPS information
+			function writeInfo(saveTheMask) {
+				var ent;
+				var n = localStorage.imgName;
+				n = "a"+n;
+				
+    			settingsDirectory.getFile("canopyAppInfo.txt", {create: true}, fileSuccess, fail);
+				function fileSuccess(fileEntry) {
+					fileEntry.file(gotInfoFile, fail);
+    				ent = fileEntry;
+				}
+    			
+    			function gotInfoFile(file) {
+    				var reader = new FileReader();
+    				reader.onloadend = function(evt) {
+    					var res = extractText(n, evt.target.result);
+    					if (res==null) { // entry does not exist, create entry
+    						ent.createWriter(getGPS, fail);
+    					}
+    					else { // entry exists
+    						//alert("An entry by this name already exists.");
+    						//window.location = "photoDetails.html";
+    						var str = evt.target.result;
+							ent.createWriter(gotFileWriter2, function(){alert("Failed to create file writer.");});
+							function gotFileWriter2(writer) {
+								writer.onwrite = function(evt) {
+									console.log("Write Success");
+									window.location = "photoDetails.html";
+								};
+								
+								var str2 = str.substring(getEndNum(), str.length);
+			    				var str3 = str.substring(getStartNum(), str.length);
+			    				var str4 = str.substring(0, getStartNum());
+								writer.seek(getStartNum());
+								var newdoc = "<"+n+">"+percent+"</"+n+">"+str2;
+								
+			    				writer.write(newdoc);
+			    				if (newdoc.length<str3.length) {
+			    					writer.truncate(newdoc.length+str4.length);
+			    				}
+			    				
+			    				function getStartNum() {
+									var s = "<"+n+">";
+									return str.indexOf(s);
+								}
+								function getEndNum() {
+									var s = "</"+n+">";
+									var e = str.indexOf(s);
+									return (e+s.length);
+								}
+			    			}
+    					}
+    					if(saveTheMask==1)
+    						saveMask();
+    					//window.location = "photoDetails.html";
+    					
+    					var lat, long;
+    					function getGPS(writer) {
+							document.getElementById("maintext").innerHTML="loading gps...";
+							setTimeout(function() {
+								document.getElementById("maintext").innerHTML="loading gps...";
+							}, 1);
+    						var onGPSSuccess = function(position) {
+								lat = position.coords.latitude;
+								long = position.coords.longitude;
+								gotFileWriter(writer);
+							};
+							function onGPSError(error) {
+								//alert('Could not get GPS location:\n code: '    + error.code    + '\n' +
+								//'message: ' + error.message + '\n');
+								//lat=long=0;
+								lat=long="undefined";
+								gotFileWriter(writer);
+							}
+							navigator.geolocation.getCurrentPosition(onGPSSuccess, onGPSError, {maximumAge: 30000, timeout:1000, enableHighAccuracy : true});
+						}
+						
+    					function gotFileWriter(writer) {
+    						writer.onwrite = function(evt) {
+    							console.log("Write Success");
+    						};
+    						writer.seek(writer.length);
+    						
+    						var latLong;
+    						if(lat=="undefined")
+    							latLong="<"+n+"gps>undefined</"+n+"gps>";
+    						else
+    							latLong="<"+n+"gps>"+lat+", "+long+"</"+n+"gps>";
+    						
+    						writer.write("<"+n+">"+percent+"</"+n+">" +
+    							"<"+n+"upload>n</"+n+"upload>" +
+    							"<"+n+"name>"+photoname+"</"+n+"name>" + //ADD NEW FIELDS BETWEEN NAME AND COMMENT
+    							latLong +
+    							"<"+n+"comm>COMMENT</"+n+"comm>");
+    							
+							window.location = "photoDetails.html";
+    					}
+    				};
+    				reader.readAsText(file);
+    			}
+			}
+			
+			//sets functions and variables back to their defaults, calls starter function to rebuild page
+			function resetPage() {
+        		points=[];
+				document.getElementById("maintext").innerHTML="touch the canopy";
+				
+				document.getElementById("upButton").onclick=function(){dotChangeUp();};
+				document.getElementById("sensDotText").innerText=dotText;
+				document.getElementById("sensDotSize").onchange=function(){dotSizeChange();};
+				document.getElementById("sensDotSize").value=dotSize;
+				document.getElementById("downButton").onclick=function(){dotChangeDown();};
+				
+				document.getElementById("processNext").onclick=function(){setMask();};
+				document.getElementById("processNext").innerHTML="process<br>selection";
+				document.getElementById("processNext").style.fontSize=".5em";
+				document.getElementById("saveUndo").onclick=function(){skipAnalysis();};
+				document.getElementById("saveUndo").innerText="save";
+				
+				sens=.2;
+				setCanvasesAndContexts();
+			}
+			
+			//extracts the masked image data from the main canvas, saves it to a file
+			function saveMask() {
+				var name = "mask-"+localStorage.imgName;
+				name = name.replace(/.jpg/g , "");
+                name = name+".txt";
+                //name = name+".png";
+                
+                var canv=document.getElementById("canvas");
+                var img=convertCanvasToImage(canv);
+                saveBase64Image(img);
+                
+                function saveBase64Image(theImage) {
+                    canopyDirectory.getFile(name, {create: true, exclusive: false}, gotImageFileEntry, fail);
+                    
+                    function gotImageFileEntry(fileEntry) {
+                        fileEntry.createWriter(gotFileWriter, fail);
+                    }
+                    function gotFileWriter(writer) {
+                        writer.onwrite = function(evt) {
+                            //alert("Image write success: "+name);
+                        };
+                        writer.seek(0);
+                        writer.write(theImage);
+                    }
+                }
+                
+                function convertCanvasToImage(theCanvas) {
+                    /*var image = new Image();
+                     image.src = theCanvas.toDataURL("image/png");
+                     return image;*/
+                    return theCanvas.toDataURL("image/png");
+                }
+                
+				/*window.canvas2ImagePlugin.saveImageDataToLibrary(
+                 function(msg){ alert("Mask save succeeded"); },
+                 function(err){
+                 alert("Error saving mask: "+err.message+"\nCode: "+err.code);
+                 },
+                 document.getElementById("canvas")
+                 );*/
+			}
+			function skipAnalysis() {
+				percent="masking incomplete";
+				writeInfo(false);
+			}
+			
+			
+			
+			
+			function goBack() {
+				imgEntry.remove(function(){}, function(er){});
+				window.location = "index.html";
+			}
+			
+			function dotSizeChange() { 
+				var temp = document.getElementById("sensDotSize").value;
+				dotSizeUpdate(temp);
+			}
+			function dotSizeUpdate(num) { 
+				if(num<5) {
+					num=5;
+				}
+				else if(num>70) {
+					num=70;
+				}
+				dotSize=num;
+				document.getElementById("sensDotSize").value=dotSize;
+			}
+			function dotChangeDown() {
+				var temp = document.getElementById("sensDotSize").value;
+				temp=temp*1;
+				temp=temp-5;
+				dotSizeUpdate(temp);
+			}
+			function dotChangeUp() {
+				var temp = document.getElementById("sensDotSize").value;
+				temp=temp*1;
+				temp=temp+5;
+				dotSizeUpdate(temp);
+			}
+			
+			//grabs the new sensitivity value, checks it for validity and sets it
+			function sensitiv() {
+				var temp = document.getElementById("sensDotSize").value;
+				sensUpdate(temp);
+			}
+			function sensUpdate(num) {
+				if (num > -1 && num < 101) {
+					sens = num;
+					sens=Math.round(sens);
+					document.getElementById("sensDotSize").value=sens;
+					sens = sens/100;
+				}
+				else {
+					//alert("Invalid sensitivity.");
+					if (num > 101) {
+						sens = 100;
+						document.getElementById("sensDotSize").value=sens;
+						sens = sens/100;
+					}
+					else {
+						sens = 0;
+						document.getElementById("sensDotSize").value=sens;
+						sens = sens/100;
+					}
+				}
+			}
+			function sensChangeUp() {
+				var temp=document.getElementById("sensDotSize").value;
+				temp=temp*1;
+				temp=temp+5;
+				temp=Math.round(temp);
+				document.getElementById("sensDotSize").value=temp;
+				sensitiv2();
+			}
+			function sensChangeDown() {
+				var temp=document.getElementById("sensDotSize").value;
+				temp=temp*1;
+				temp=temp-5;
+				temp=Math.round(temp);
+				document.getElementById("sensDotSize").value=temp;
+				sensitiv2();
+			}
+		</script>
+        <title>Canopy App</title>
+    </head>
+    <body id="theBody">
+    	<div id="loader"></div>
+		<div id="container" class="container">
+			<div class="topbar" style="height:1.75em; text-align:center;">
+				<button type="button" style="float:left; padding:5px 20px;" onclick="goBack()">menu</button>
+				<h1 id="maintext" style="font-size:1em; line-height:2em;">touch the canopy</h1>
+			</div>
+			
+			<div style="margin-left:.1em; margin-top:.1em;">
+				<canvas id="canvas" style="margin-top:.1em; display:inline-block; margin-left:auto; margin-right:auto; border:1px solid #000000;"></canvas>
+				
+				<span style="display:inline-block; vertical-align:top; text-align:center; width:20%;">
+					<button id="upButton" style="height:2em;" onclick="dotChangeUp()">+</button><br>
+					<span class="text1" id="sensDotText" style="font-size:.5em;"></span><br>
+					<input id="sensDotSize" type="number" size="2" maxlength="2" style="font-size:1em; width:2em;" onchange="dotSizeChange()"><br>
+					<button id="downButton" style="height:2em;" onclick="dotChangeDown()">-</button><br>
+					
+					<button id="processNext" style="height:3.5em; font-size:.5em;" disabled>process<br>selection</button><br>
+					<button id="saveUndo" style="font-size:1em; height:2em;" disabled>save</button><br>
+					<button id="reset" style="font-size:1em; height:2em;" onclick="resetPage()" disabled>reset</button>
+				</span>
+			</div>
+			
+		</div>
+    </body>
+</html>

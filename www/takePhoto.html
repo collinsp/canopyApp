@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+        <link rel="stylesheet" type="text/css" href="css/index.css" />
+        
+		<style>
+			.buttonthing {
+				display:block;
+				left:25%;
+				margin-left:auto;
+				margin-right:auto;
+				width:5em;
+				height:2em;
+				margin: 0 auto;
+			}
+			text1 {
+				display:block;
+				left:25%;
+				margin: 0 auto;
+			}
+			.header {
+				font-size:1.75em;
+			}
+		</style>
+        
+    	<script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+        <script type="text/javascript" charset="utf-8">
+        	var watchAccel;
+        	var gh, gw, gx, gy, gcx, gcy; // gyro
+        	var ccw, cch, ccx, ccy; // centre circle
+        	var canvas, context, ball;
+        	var prevX, prevY, newX, newY;
+        	var timer, inside;
+        	
+        	document.addEventListener("deviceready",onDeviceReady,false);
+			
+    	function onDeviceReady() {
+    		screen.lockOrientation("landscape");
+				document.getElementById("camera").addEventListener('touchstart', takeThePictureAlready);
+				document.getElementById("indexButton").addEventListener('touchstart', goToIndex);
+				
+        		canvas = document.getElementById("canvas");
+        		context = canvas.getContext("2d");
+        		
+				var gyro = document.getElementById("gyropic");
+				canvas.style.left = gyro.offsetLeft+'px';
+				canvas.style.top = gyro.offsetTop+'px';
+        		setSize();
+        		
+				var speed = { frequency: 100 };  // update every .1 seconds
+				watchAccel = navigator.accelerometer.watchAcceleration(onSuccess, onError, speed);
+			}
+			
+			//calculates the size and position of the center, places the red dot on the gyroscope
+			function setSize() {
+				var gyro = document.getElementById("gyropic");
+				gh = gyro.offsetHeight;
+				gw = gyro.offsetWidth;
+				gx = gyro.offsetLeft;
+				gy = gyro.offsetTop;
+				ccw=Math.round(gw*.16); //centre circle width
+				cch=Math.round(gh*.16); //centre circle height
+				
+				x = Math.round(gw/2);
+				y = Math.round(gh/2);
+				ccx = x-(ccw/2);
+				ccy = y-(cch/2);
+				
+				canvas.height=gh;
+				canvas.width=gw;
+				
+				ball = new Image();
+				ball.onload = function() {
+					ball.style.width='50px';
+					ball.style.height='50px';
+					var ix = Math.round(ball.width/2);
+					var iy = Math.round(ball.height/2);
+					gcx = x-ix;
+					gcy = y-iy;
+					prevX = gcx;
+					prevY = gcy;
+					inside = 0;
+					
+					var i="gh: "+gh+"\n"+
+					"gw: "+gw+"\n"+
+					"gx: "+gx+"\n"+
+					"gy: "+gy+"\n"+
+					"ccw: "+ccw+"\n"+
+					"cch: "+cch+"\n"+
+					"ccx: "+ccx+"\n"+
+					"ccy: "+ccy+"\n"+
+					"canv.w: "+canvas.width;
+					
+					//this will draw a box around the "center" for debugging
+						//be sure to also comment out the stuff in "drawImage" or the canvas will keep clearing itself 
+					//alert(ccx+", "+ccy+"\n"+ccw+", "+cch);
+					//context.rect(ccx, ccy, ccw, cch);
+					//context.strokeStyle="red";
+					//context.stroke();
+				}
+				ball.src = "../www/img/dot.png";
+			}
+			
+			function onError() {
+				alert("Accelerometer failure!");
+			}
+			
+			//handles accelerometer changes
+			function onSuccess(acceleration) {
+				var sensitivity = 15; //increase this number to increase sensitivity
+				var tiltLR = acceleration.x*sensitivity;
+  			var tiltFB = acceleration.y*sensitivity;
+  			//console.log("tiltLR: "+tiltLR+"     tiltFB: "+tiltFB+"    acceleration.x: "+acceleration.x+"    acceleration.y: "+acceleration.y);
+
+  			dx = tiltFB; //even though the screen is locked, the screen will continue to acknowledge the below events
+  			dy = tiltLR;
+
+				newX = dx + gcx;
+				newY = dy + gcy;
+				//console.log("newX: "+newX+"   newY: "+newY);
+  				
+  			/*var orient = window.orientation;
+				if (!orient || orient === 0) { // normal portrait orientation
+					//alert("portrait");
+  				dx = tiltLR;
+  				dy = tiltFB;
+				} else if (orient === -90) { // landscape, rotated clockwise
+					//alert("clockwise");
+  				dx = -tiltFB;
+  				dy = -tiltLR;
+				} else if (orient === 90) { // landscape, rotated counterclockwise
+					//alert("counterclockwise");
+  				dx = tiltFB;
+  				dy = tiltLR;
+				} else if (orient === 180) { // portrait, upside down
+					//alert("upside-down");
+  				dx = -tiltLR;
+  				dy = -tiltFB;
+				}
+				newX = dx + gcx;
+				newY = dy + gcy;*/
+				prevX = newX;
+				prevY = newY;
+				
+				if (newX > ccx && newX < ccx+ccw && newY > ccy && newY < ccy+cch) {
+					if (inside == 0) {
+						inside = 1;
+						timer=setInterval(function(){checkTimer()},2000);
+					}
+				}
+				else
+					stopTimer();
+				
+				drawImage(newX, newY);
+ 			}
+			
+			function drawImage(x, y) {
+				context.clearRect(0,0,1000,1000);
+				context.drawImage(ball, x, y);
+			}
+			
+			function checkTimer() {
+				stopTimer();
+				navigator.accelerometer.clearWatch(watchAccel);
+				navigator.accelerometer.clearWatch(timer);
+				
+				takeThePictureAlready();
+        		/*pictureSource=navigator.camera.PictureSourceType;
+        		destinationType=navigator.camera.DestinationType;
+        		encodingType=navigator.camera.EncodingType;
+				
+      			navigator.camera.getPicture(onPhotoDataSuccess, onFail, { quality: 10, targetWidth: -1, targetHeight: -1, encodingType:encodingType.JPEG });
+      			*/
+			}
+			function stopTimer() {
+				inside = 0;
+				clearInterval(timer);
+			}
+			
+			
+			
+			// camera stuff
+			function onPhotoDataSuccess(imageData) {
+      			var re = /\?(\d*)$/;
+      			imageData=imageData.replace(re, "");
+				window.resolveLocalFileSystemURI(imageData, resolveOnSuccess, resOnError);
+    		}
+    		function resolveOnSuccess(entry){
+    			var d = new Date();
+    			var n = d.getTime();
+    			//new file name
+    			var newFileName = n + ".jpg";
+    			var myFolderApp = "canopyApp";
+				
+    			window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fileSys) {
+    			//console.log("resolve 2");
+    			//The folder is created if doesn't exist
+    			fileSys.root.getDirectory( myFolderApp,
+                    {create:true, exclusive: false},
+                   		function(directory) {
+                        	entry.moveTo(directory, newFileName,  successMove, resOnError);
+                    	}, resOnError);}, resOnError);
+			}
+    		function successMove(entry) {
+    			console.log("yep: "+entry.name);
+    			localStorage.imgName = entry.name;
+    			localStorage.prevPage = "takePhoto.html";
+        		window.location = "magicWand.html";
+			}
+			function resOnError(error) {
+    			alert("Move file error code: "+error.code);
+			}
+    		
+			function onFail(message) {
+     			alert('Failed because: ' + message);
+      			window.location="index.html";
+    		}
+			function gotFS(fileSystem) {
+				fileSystem.getDirectory("canopyApp", {create: true, exclusive: false}, success, onFail);
+			}
+			
+			function takeThePictureAlready() {
+				document.getElementById("camera").disabled=true;
+        		pictureSource=navigator.camera.PictureSourceType;
+        		destinationType=navigator.camera.DestinationType;
+        		encodingType=navigator.camera.EncodingType;
+      			navigator.camera.getPicture(onPhotoDataSuccess, onFail, { quality: 10, targetWidth: -1, targetHeight: -1, encodingType:encodingType.JPEG });
+      		}
+      		
+      		function goToIndex() {
+      			window.location="index.html";
+      		}
+        </script>
+        
+        <title>Canopy App</title>
+    </head>
+    <body>
+		<div id="container" class="container">
+			<div class="topbar" style="padding-top:0px; text-align:center; display:block;">
+				<button type="button" id="indexButton" style="float:left; height:2em;" onclick="goToIndex()">menu</button>
+				<h1 style="font-size:2em;">level camera</h1>
+			</div>
+			<div style="text-align:center; height:12em;">
+				<img src="img/gyro.png" id="gyropic" alt="Representation of a gyroscope" class="gyro">
+                <canvas id="canvas" class="canv"></canvas>
+            </div>
+            
+			<div style="text-align:center;">
+				<button type="button" id="camera" onclick="takeThePictureAlready()">skip</button>
+            	<text1 style="font-size:1em;">point device up and get the red circle in the center for two seconds to bring up the camera</text1>
+            </div>
+            
+		</div>
+    </body>
+</html>

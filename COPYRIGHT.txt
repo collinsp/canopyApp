@@ -1,0 +1,5 @@
+CanopyApp Copyright (C) 2023  University of New Hampshire
+    This program comes with ABSOLUTELY NO WARRANTY;
+    This is free software, and you are welcome to redistribute it
+    under conditions described in LICENSE.txt;
+

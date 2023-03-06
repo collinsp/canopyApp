@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="format-detection" content="telephone=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+		<link rel="stylesheet" type="text/css" href="css/index.css" />
+		
+		<script type="text/javascript" src="js/iscroll.js"></script>
+		<style>
+			ul,li {
+				padding:0;
+				margin:0;
+				border:0;
+			}
+        	#wrapper {
+				position:absolute; z-index:1;
+				top:45px; bottom:48px; left:0;
+				width:100%;
+				height:90%;
+				background:#488eb3;
+				overflow:auto;
+			}
+			
+			#scroller {
+				position:absolute; z-index:1;
+				-webkit-tap-highlight-color:rgba(0,0,0,0);
+				width:100%;
+				padding:0;
+			}
+			
+			#scroller ul {
+				list-style:none;
+				padding:0;
+				margin:0;
+				width:100%;
+				text-align:left;
+			}
+			
+			#scroller li {
+				padding:0 10px;
+				height:40px;
+				line-height:40px;
+				border-bottom:1px solid #ccc;
+				border-top:1px solid #fff;
+				background-color:#488eb3;
+				font-size:14px;
+			}
+			
+        	text1 {
+        		font-size:18px;
+        	}
+        	
+        	.fakeCheckBox {
+				box-shadow:inset 0px 1px 7px 0px #bee2f9;
+				background-color:#63b8ee;
+				border-top-left-radius:6px;
+				border-top-right-radius:6px;
+				border-bottom-right-radius:6px;
+				border-bottom-left-radius:6px;
+				border:1px solid #3866a3;
+				display:inline-block;
+				color:#FFFFFF;
+				font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+				letter-spacing: 3px;
+				font-size:1em;
+				font-style:normal;
+				text-decoration:none;
+				text-align:center;
+				padding:10px;
+			}
+        </style>
+		
+		<script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+		<script type="text/javascript" src="js/Utils.js"></script>
+		<script type="text/javascript" charset="utf-8">
+			var myScroll;
+			function loaded() {
+				myScroll = new iScroll('wrapper', {
+					onBeforeScrollStart: function (e) {
+						var target = e.target;
+						while (target.nodeType != 1) target = target.parentNode;
+						if (target.tagName != 'SELECT' && target.tagName != 'INPUT' && target.tagName != 'TEXTAREA') //if this isn't here, iScroll will block typing in the input boxes
+							e.preventDefault();
+						}
+				});
+   				var end=document.getElementById('theEnd');
+    			var newheight=document.getElementById('endblock').offsetHeight + end.offsetHeight+300;	//sometimes iScroll won't scroll all the way to the bottom
+				document.getElementById('endblock').style.height=newheight+'px';						//this seems to fix that
+				myScroll.refresh();
+			}
+			
+			document.addEventListener('DOMContentLoaded', loaded, false);
+			
+			var canvas, context;
+			var image, mask, maskEntry; //"image" is whatever is displayed on the canvas, "mask" is the image entry for the mask
+			var maskOrImage;
+			var imgSrc, maskSrc; //source paths for image and mask
+			var scale=.4; //how small to scale the image
+			var fileEntry, infoString, imageName, imgEntry;
+			var email, username;
+			var nextPage=0;
+			
+			document.addEventListener("deviceready",onDeviceReady,false);
+			
+			function onDeviceReady() {
+    		screen.lockOrientation("landscape");
+				//document.getElementById("done").addEventListener('touchstart', done);
+				//document.getElementById("cancel").addEventListener('touchstart', cancel);
+				//document.getElementById("delete").addEventListener('touchstart', del);
+				//document.getElementById("upload").addEventListener('touchstart', checkUpload);
+				
+				document.getElementById("swapButton").onclick=function(){toggleChecked();};
+				
+				canvas = document.getElementById("canvas");
+				context = canvas.getContext("2d");
+				maskOrImage=1; //0 mask, 1 image
+				document.getElementById("showMask").checked = false;
+    	    	getImage();
+			}
+			
+	        function getImage() {
+	        	//alert(localStorage.imgName);
+				var maskname = "mask-"+localStorage.imgName;
+				maskname = maskname.replace(/.jpg/g , "");
+				maskname = maskname+".txt";
+				
+				window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fileSys) {
+    				fileSys.root.getDirectory("canopyApp", {create:false},
+						function(directory) {
+							directory.getFile(localStorage.imgName, {create: false}, imgSuccess, imgFail);
+							directory.getFile(maskname, {create: false}, maskSuccess, maskFail);
+						}, imgFail);}, imgFail);
+			}
+			
+			function maskSuccess(img) {
+				img.file(gotImgFile, fail);
+				maskEntry=img;
+    			function gotImgFile(file) {
+    				var reader = new FileReader();
+    				reader.onloadend = function(evt) {
+						mask64 = evt.target.result;
+                        mask=mask64.substring(22,mask64.length);
+    				};
+    				reader.readAsText(file);
+    			}
+			}
+			function maskFail(err) {
+				//alert("Failed to fetch mask.\nCode "+err.code+"\nMessage: "+err.message);
+				mask=null;
+    			document.getElementById("swapButton").style.visibility="hidden";
+			}
+			function imgSuccess(img) {
+				image = new Image();
+				image.onload = function() {
+					canvas.width = image.width*scale;
+					canvas.height = image.height*scale;
+ 					context.drawImage(image, 0, 0, image.width*scale, image.height*scale);
+				}
+				//image.src = "img/testCanopy.jpg"; //for in-browser testing
+				//imgSrc = "img/testCanopy.jpg"; //for in-browser testing
+				image.src=img.fullPath;
+				imgSrc=img.fullPath;
+				imgEntry = img;
+				readImageDetails();
+			}
+			
+			function readImageDetails() {
+				imageName = localStorage.imgName;
+								
+				window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, gotFileSys, function(){alert("Failed to fetch file system.");});
+    			function gotFileSys(fileSys) {
+    				fileSys.root.getDirectory("canopyApp", {create:false}, getTheDir, function(){alert("Failed to fetch directory.");});
+    			}
+    			function getTheDir(directory) {
+    				directory.getDirectory("settings", {create:true}, gotSettingsDir, function(){alert("Failed to fetch settings directory.");});
+    			}
+    			function gotSettingsDir(dir) {
+					dir.getFile("canopyAppInfo.txt", {create: true}, fileSuccess, function(){alert("Failed to fetch photo information.");});
+					dir.getFile("canopyAppSettings.txt", {create: true}, settingsSuccess, function(){alert("Failed to fetch settings.");});
+    			}
+    			
+    			function fileSuccess(ent) {
+    				fileEntry = ent;
+					fileEntry.file(gotFile, fail);
+				}
+				function settingsSuccess(fileEntry) {
+					fileEntry.file(gotSettingsFile, fail);
+				}
+    			function gotSettingsFile(file) {
+    				var reader = new FileReader();
+    				reader.onloadend = function(evt) {
+						var settings = evt.target.result;
+						//if (settings.length == 0) {
+						//	if (confirm("Your settings haven't been set! Would you like to set them now?"))
+						//		window.location = "settings.html";
+						//}
+						//else {
+							email = extractText("email", settings);
+							username = extractText("username", settings);
+						//}
+    				};
+    				reader.readAsText(file);
+    			}
+    			
+    			function gotFile(file) {
+    				var reader = new FileReader();
+    				reader.onloadend = function(evt) {
+    					imageName = localStorage.imgName;
+    					imageName = "a"+imageName;
+    					infoString = evt.target.result;
+    					percent = extractText(imageName, infoString);
+    					if (percent==null) { // entry does not exist, which shouldn't happen
+    						alert("Image details not found.");
+    					}
+    					else { // entry found
+    						var name = extractText(imageName+"name", infoString);
+    						var comments = extractText(imageName+"comm", infoString);
+    						var up = extractText(imageName+"upload", infoString);
+    						gps = extractText(imageName+"gps", infoString);
+    						    						
+    						if (up=="y") {
+    							document.getElementById("warning").style.visibility="hidden";
+    							document.getElementById("warningText").innerHTML="";
+    						}
+    						
+    						document.getElementById("nameblock").value=name;
+    						document.getElementById("commentsblock").value=comments;
+    						document.getElementById("gpsblock").value=gps;
+    						if(isNaN(percent))
+    							document.getElementById("percentblock").innerHTML=percent;
+    						else
+    							document.getElementById("percentblock").innerHTML=percent+"%";
+    						imgEntry.getMetadata(function(meta) {
+    							document.getElementById("dateblock").innerHTML=meta.modificationTime;}, fail);
+    					}
+    				};
+    				reader.readAsText(file);
+    			}
+			}
+    		function fail(mess) {
+    			alert("Failed because: "+mess.message);
+    		}
+    		function extractText(tagName, htmlString) {
+	   			var div = document.createElement('div'); // Build a DOM element.
+    			div.innerHTML = htmlString; // Set its contents to the HTML string.
+    			var el = div.getElementsByTagName(tagName) // Find the target tag.
+    			return (el.length > 0) ? el[0].textContent : null; // Return its contents.
+    		}
+			
+			function update() {
+				fileEntry.createWriter(gotFileWriter, function(){alert("Failed to create file writer.");});
+				readImageDetails();
+				
+				function gotFileWriter(writer) {
+					writer.onwrite = function(evt) { console.log("Write Success"); };
+					
+					imageName=localStorage.imgName;
+					imageName="a"+imageName;
+					
+					var str2 = infoString.substring(getEndNum(), infoString.length);
+    				var str3 = infoString.substring(getStartNum(), infoString.length);
+    				var str4 = infoString.substring(0, getStartNum());
+					writer.seek(getStartNum());
+					
+					var newname = document.getElementById("nameblock").value;
+					var newcomm = document.getElementById("commentsblock").value;
+					var newgps = document.getElementById("gpsblock").value;
+					
+					if(newname.indexOf('<') != -1 ||
+						newname.indexOf('>') != -1 ||
+						newcomm.indexOf('>') != -1 ||
+						newcomm.indexOf('<') != -1 ||
+						newgps.indexOf('>') != -1 ||
+						newgps.indexOf('<') != -1) {
+						alert("Invalid character found.\nInvalid characters: < >");
+						nextPage=1;
+					}
+					else {
+						comment=newcomm;
+						gps=newgps;
+						var newdoc = "<"+imageName+"name>"+newname+"</"+imageName+"name><"+imageName+"gps>"+newgps+"</"+imageName+"gps><"+imageName+"comm>"+newcomm+"</"+imageName+"comm>"+str2;
+						
+	    				writer.write(newdoc);
+	    				if (newdoc.length<str3.length) {
+							writer.truncate(newdoc.length+str4.length);
+	    				}
+	    				nextPage=0;
+    				}
+    			}
+			}
+			
+			
+			
+			
+			
+			
+			function getStartNum() {
+				var s = "<"+imageName+"name>";
+				return infoString.indexOf(s);
+			}
+			function getEndNum() {
+				var s = "</"+imageName+"comm>";
+				var e = infoString.indexOf(s);
+				return (e+s.length);
+			}
+			
+			function imgFail(message) {
+				alert("Fetching image failed because: "+message.message+", code "+message.code);
+        		window.location = "index.html";
+			}
+			
+			function done() {
+				update();
+				if(nextPage==0) window.location = "archive.html";
+			}
+			function cancel() {
+				window.location = "archive.html";
+			}
+			function del() {
+				if (confirm("Are you sure you want to delete this image?")) {
+					removeImageInfo();
+					if(maskEntry)
+						maskEntry.remove(function() {}, function(er) { "Failed to delete mask: "+er.code });
+					imgEntry.remove(function() {}, function(er) { "Failed to delete image: "+er.code });
+					window.location = "archive.html";
+				}
+			}
+			
+			function removeImageInfo() {
+				fileEntry.createWriter(gotFileWriter, function(){alert("Failed to create info writer.");});
+				
+				function gotFileWriter(writer) {
+					writer.onwrite = function(evt) { console.log("Write Success"); };
+					
+					var str2 = infoString.substring(0, getRemStartNum());
+    				var str3 = infoString.substring(getEndNum(), infoString.length);
+					writer.seek(0);
+					
+					var newdoc = str2+str3;
+					
+    				writer.write(newdoc);
+    			}
+    			function getRemStartNum() {
+					var s = "<"+imageName+">";
+					return infoString.indexOf(s);
+				}
+			}
+			
+			function checkUpload() {
+				if (checkEmail() == 1) {
+					if (confirm("Your settings haven't been set! Would you like to set them now?"))
+						window.location = "settings.html";
+				}
+				else {
+					update();
+					upload();
+				}
+			}
+			function upload() {
+				var date = document.getElementById("dateblock").innerHTML;
+				var name = document.getElementById("nameblock").value;
+				var gps = document.getElementById("gpsblock").value;
+				var percent = document.getElementById("percentblock").innerHTML;
+				var comment = document.getElementById("commentsblock").value;
+				
+				var emailBody = "Name: "+name+"\n"+
+					"Date: "+date+"\n"+
+					"GPS: "+gps+"\n"+
+					"Percent: "+percent+"\n\n"+
+					"Comment: "+comment+"\n";
+				var imageFile = imgEntry.fullPath.replace('file:/', 'absolute:');
+				
+				if(mask!=null) {
+					maskEntry.file(gotImgFile, fail);
+					function gotImgFile(f) {
+						var reader = new FileReader();
+						reader.onloadend = function(evt) {
+							var mask64 = evt.target.result;
+							mask64=mask64.substring(22,mask64.length);
+							
+							var maskname = "mask-"+localStorage.imgName;
+							maskname = maskname.replace(/.jpg/g , "");
+							maskname = maskname+".txt";
+							var maskname2 = maskname.replace(/.txt/g , "");
+							mask64='base64:'+maskname2+'.png//'+mask64;
+							
+							//https://github.com/katzer/cordova-plugin-email-composer/tree/f4fcee88c47c7ac642cceb27d3d8b31edd26a8f6#examples
+							window.plugin.email.open({
+								to: [email],
+								subject: 'CanopyApp Picture',
+								body: emailBody,
+								attachments: [imageFile, mask64]
+							},uploaded(imgEntry));
+						};
+						reader.readAsText(f);
+					}
+				}
+				else {
+					window.plugin.email.open({
+						to: [email],
+						subject: 'CanopyApp Picture',
+						body: emailBody,
+						attachments: [imageFile]
+					},uploaded(imgEntry));
+				}
+			}
+			function uploaded(file) {
+				fileEntry.createWriter(
+					function (writer) {
+						writer.onwrite = function(evt) {
+							console.log("Write Success");
+						};
+						imageName = "a"+file.name;
+						writer.seek(infoString.indexOf("<"+imageName+"upload>"));
+						var strEnd = infoString.substring(getEndUpload(), infoString.length);
+						writer.write("<"+imageName+"upload>y</"+imageName+"upload>"+strEnd);
+						
+						writer.onwriteend = function(evt) {
+							//alert("Image successfully uploaded!");
+							window.location="photoDetails.html";
+						}
+						
+						function getEndUpload() {
+							var s = "</"+imageName+"upload>";
+							var e = infoString.indexOf(s);
+							return (e+s.length);
+						}
+					}, fail);
+			}
+			function notUploaded() {
+				var file=imgEntry;
+				fileEntry.createWriter(
+					function (writer) {
+						writer.onwrite = function(evt) {
+							console.log("Write Success");
+						};
+						imageName = "a"+file.name;
+						writer.seek(infoString.indexOf("<"+imageName+"upload>"));
+						var strEnd = infoString.substring(getEndUpload(), infoString.length);
+						writer.write("<"+imageName+"upload>n</"+imageName+"upload>"+strEnd);
+						
+						writer.onwriteend = function(evt) {
+							window.location="photoDetails.html";
+						}
+						
+						function getEndUpload() {
+							var s = "</"+imageName+"upload>";
+							var e = infoString.indexOf(s);
+							return (e+s.length);
+						}
+					}, fail);
+			}
+			
+			function show() {
+				alert(infoString);
+			}
+			
+			function reMask() {
+				localStorage.skip = "0";
+				localStorage.prevPage = "photoDetails.html";
+				window.location = "magicWand.html";
+			}
+			
+			function switchImage() {
+				if(maskOrImage==1) { //switch to mask
+					//alert("mask");
+					maskOrImage=0;
+                    image.src=mask64;
+                    image.onload=function() {
+                        canvas.width = image.width*scale;
+                        canvas.height = image.height*scale;
+                        context.drawImage(image, 0, 0, image.width*scale, image.height*scale);
+                    }
+					document.getElementById("showMask").checked = true;
+				}
+				else { //switch to image
+					//alert("image");
+					maskOrImage=1;
+					image.src=imgSrc;
+                    image.onload = function() {
+                        canvas.width = image.width*scale;
+                        canvas.height = image.height*scale;
+                        context.drawImage(image, 0, 0, image.width*scale, image.height*scale);
+                    }
+					document.getElementById("showMask").checked = false;
+				}
+				setTimeout(function() {
+					canvas.style.opacity = 1;
+				}, 1);
+			}
+			
+			var lock=0;
+			function toggleChecked() {
+				//alert("toggle");
+				if(lock==0) {
+					lock=1;
+					if(document.getElementById("showMask").checked)
+						document.getElementById("showMask").checked = false;
+					else
+						document.getElementById("showMask").checked = true;
+					switchImage();
+					setTimeout(function(){
+						lock=0;
+					},(.5*1000));
+				}
+			}
+			
+    		function getGPS() {
+    			var onGPSSuccess = function(position) {
+                    var lat, long;
+					lat = position.coords.latitude;
+					long = position.coords.longitude;
+                    lat=lat.toFixed(5);
+                    long=long.toFixed(5);
+					document.getElementById("gpsblock").value=lat+","+long;
+				};
+				function onGPSError(error) {
+					alert('Could not get GPS location:\n code: '    + error.code    + '\n' +
+					'message: ' + error.message + '\n');
+				}
+				navigator.geolocation.getCurrentPosition(onGPSSuccess, onGPSError, {maximumAge: 30000, timeout:1000, enableHighAccuracy : true});
+			}
+			
+        </script>
+        <title>Canopy App</title>
+    </head>
+    <body>
+    	<div id="loader"></div>
+		<div id="container" class="container">
+			<div class="topbar" style="height:3em;">
+				<button style="float:left; height:2.5em;" id="cancel" onclick="cancel()">cancel</button>
+				<button style="float:right; height:2.5em;" id="done" onclick="done()">save</button>
+				<h1 id="title" style="font-size:1em;">coverage analysis: <span id="percentblock"></span></h1>
+				<!--<button type="button" class="button" id="notupload" onclick="notUploaded()">not uploaded</button>-->
+				<!--<button type="button" onclick="show()">show info</button>-->
+			</div>
+			
+			<div id="wrapper" style="top:4em;"><ul>
+    			<li id="endblock"><div id="scroll-content" style="height:100%; width:100%;">
+    			
+    			
+				<div style="vertical-align:middle; text-align:center;">
+					<canvas id="canvas" style="display:inline-block; vertical-align:middle; height:12em;"></canvas>
+					<div style="display:inline-block; vertical-align:middle;">
+						<label class="fakeCheckBox" style="width:90%; height:40%;" id="swapButton"><input type="checkbox" id="showMask"/>show mask</input></label>
+						
+						<!--<button id="swapButton" onclick="switchImage()">mask</button>-->
+							<br><br>
+						<button onclick="reMask()" style="width:100%; height:40%;">remask</button>
+							<br><br>
+						<button id="upload" style="width:100%; height:40%;" onclick="checkUpload()">email <img src="img/warning.png" id="warning"> <span id="warningText">unsent</span></button>
+							<br><br>
+						<button style="width:100%; height:40%;" onclick="getGPS()">get current gps</button>
+					</div>
+				</div>
+				
+				
+				<div style="padding:10px; vertical-align:middle;"><!--border:1px solid #000000;-->
+					<div style="display:table; padding-top:.5em; width:100%;">
+						<div class="row">
+							<div class="cell"><textblock><st>name: </st></textblock></div>
+							<div class="cell"><input type="text" id="nameblock"></div>
+						</div>
+						<div class="row"><div style="display:table-cell; width:40%;"></div></div>
+						<div class="row">
+							<div class="cell"><textblock><st>date: </st></textblock></div>
+							<div class="cell"><text1 id="dateblock"></text1></div>
+						</div>
+						<div class="row">
+							<div class="cell"><textblock><st>gps: </st></textblock></div>
+							<div class="cell"><input type="text" id="gpsblock"></div>
+						</div>
+						<div class="row" id="theEnd">
+							<div class="cell"><textblock><st>comments: </st></textblock></div>
+							<div class="cell"><textarea wrap="soft" rows="3" style="width:10em;" id="commentsblock"></textarea></div>
+						</div>
+					</div>
+					<button type="button" style="width:100%; height:3em;" id="delete" onclick="del()">delete</button>
+				</div>
+				
+				
+				</div></li>
+    		</ul></div>
+				
+				
+		</div>
+    </body>
+</html>

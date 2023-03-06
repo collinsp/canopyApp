@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="format-detection" content="telephone=no" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+		<link rel="stylesheet" type="text/css" href="css/index.css" />
+		
+		<script type="text/javascript" src="js/iscroll.js"></script>
+		<style>
+			ul,li {
+				padding:0;
+				margin:0;
+				border:0;
+			}
+        	#wrapper {
+				position:absolute; z-index:1;
+				top:45px; bottom:48px; left:0;
+				width:100%;
+				height:90%;
+				background:#488eb3;
+				overflow:auto;
+			}
+			
+			#scroller {
+				position:absolute; z-index:1;
+				-webkit-tap-highlight-color:rgba(0,0,0,0);
+				width:100%;
+				padding:0;
+			}
+			
+			#scroller ul {
+				list-style:none;
+				padding:0;
+				margin:0;
+				width:100%;
+				text-align:left;
+			}
+			
+			#scroller li {
+				padding:0 10px;
+				height:40px;
+				line-height:40px;
+				border-bottom:1px solid #ccc;
+				border-top:1px solid #fff;
+				background-color:#488eb3;
+				font-size:14px;
+			}
+			
+			
+			textblock {
+				font-size:20px;
+				border-bottom: 2px dashed black;
+				text-transform: none;
+			}
+			button.buttonthing {
+				width:27%;
+				height:2em;
+				font-size:1em;
+				margin-left:5px;
+				margin-right:5px;
+			}
+			.radio {
+				text-transform: none;
+				font-size:20px;
+				text-align: left;
+				color:#FFFFFF;
+				letter-spacing: .1em;
+				font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+			}
+			
+			.fakeCheckBox {
+				box-shadow:inset 0px 1px 7px 0px #bee2f9;
+				background-color:#63b8ee;
+				border-top-left-radius:6px;
+				border-top-right-radius:6px;
+				border-bottom-right-radius:6px;
+				border-bottom-left-radius:6px;
+				border:1px solid #3866a3;
+				display:inline-block;
+				color:#FFFFFF;
+				font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+				letter-spacing: 3px;
+				font-size:1em;
+				font-style:normal;
+				text-decoration:none;
+				text-align:center;
+				padding:10px;
+			}
+		</style>
+		
+		<script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+		<script type="text/javascript" charset="utf-8" src="js/Utils.js"></script>
+		<script type="text/javascript" charset="utf-8">
+			var myScroll;
+			function loaded() {
+				myScroll = new iScroll('wrapper');
+   				/*var end=document.getElementById('theEnd');
+    			var newheight=document.getElementById('endblock').offsetHeight + end.offsetHeight;
+				document.getElementById('endblock').style.height=newheight+'px';
+				myScroll.refresh();*/
+			}
+			
+			var email;
+			var defaultemail = "";
+			var defaultphoto = "NAME";
+			
+			document.addEventListener("deviceready",onDeviceReady,false);
+			function onDeviceReady() {
+    		screen.lockOrientation("landscape");
+				//document.getElementById("done").addEventListener('touchstart', update);
+				//document.getElementById("reset").addEventListener('touchstart', reset);
+				//document.getElementById("cancel").addEventListener('touchstart', cancel);
+				getInfo(readyThePage);
+				
+				function readyThePage() {
+					autoskip = getAutoSkip();
+					email = getEmail();
+					photoname = getDefaultPhotoName();
+					
+					email = email.trim();
+					photoname = photoname.trim();
+					
+					if (email == null || email == undefined || email == "")
+						email = defaultemail;
+					if (photoname == null || photoname == undefined || photoname == "")
+						photoname = defaultphoto;
+					
+					document.getElementById("emailblock").value=email;
+					document.getElementById("photoname").value=photoname;
+					
+					if (autoskip=="y") document.getElementById("autoSkip").checked=true;
+					else document.getElementById("autoSkip").checked=false;
+				}
+			}
+			
+			function update() {
+				var settingsFileEntry=getSettingsFileEntry();
+				settingsFileEntry.createWriter(gotFileWriter, fail);
+				
+				function gotFileWriter(writer) {
+					writer.onwrite = function(evt) { console.log("Write Success"); };
+					var newemail = document.getElementById("emailblock").value;
+					var newphotoname = document.getElementById("photoname").value;
+					var newautoskip;
+					if (document.getElementById("autoSkip").checked) newautoskip="y";
+					else newautoskip="n";
+					
+					if(newemail.indexOf('<') != -1 ||
+						newemail.indexOf('>') != -1 ||
+						newphotoname.indexOf('>') != -1 ||
+						newphotoname.indexOf('<') != -1) {
+						alert("Invalid character found.\nInvalid characters: < >");
+					}
+					else {
+						var newstr = "<email>"+newemail+"</email>"+
+							"<photoname>"+newphotoname+"</photoname><autoskip>"+newautoskip+"</autoskip>";
+						writer.write(newstr);
+						writer.onwriteend = function (evt) {
+							writer.onwriteend = null;
+							var settings = getSettingsText();
+							if (newstr.length < settings.length)
+								writer.truncate(newstr.length);
+							window.location = "index.html";
+						}
+					}
+    			}
+			}
+			function reset() {
+				document.getElementById("userblock").value="";
+				document.getElementById("emailblock").value=defaultemail;
+				document.getElementById("photoname").value=defaultphoto;
+				document.getElementById("no").checked=true;
+			}
+			function cancel() {
+				window.location = "index.html";
+			}
+			
+			function toggleChecked() {
+				if(document.getElementById("myCheck").checked)
+					document.getElementById("myCheck").checked = false;
+				else
+					document.getElementById("myCheck").checked = true;
+			}
+			
+		</script>
+		
+		<title>Settings</title>
+	</head>
+	<body>
+		<div id="container" class="container">
+		<div class="topbar">
+			<button type="button" id="cancel" style="height:100%; float:left;" onclick="cancel()">menu</button>
+			<h1 style="font-size:2em; display:inline-block;">settings</h1>
+			<button type="button" id="done" style="height:100%; float:right;" onclick="update()">done</button>
+			
+			<!--<button class="buttonthing" type="button" id="reset" onclick="reset()">reset</button>-->
+		</div>
+		<div>
+		
+		
+		<div id="wrapper" style="top:2.75em;"><ul>
+    		<li id="endblock"><div id="scroll-content" style="height:100%; width:100%;">
+		
+				<div style="display:table; padding-top: 20px;">
+					<div class="row" style="min-width:5em;">
+						<div class="cell"><textblock><st>email: </st></textblock></div>
+						<div class="cell"><input type="text" id="emailblock" size="90"></div>
+					</div>
+					<div class="row">
+						<div class="cell"><textblock><st>default photo name: </st></textblock></div>
+						<div class="cell"><input type="text" id="photoname" size="90"></div>
+					</div>
+					<label class="fakeCheckBox" onclick="toggleChecked()" style="width:100%; min-height:3em;"><input type="checkbox" id="autoSkip"/> skip coverage analysis</input></label>
+				</div>
+			
+			</div></li>
+    		</ul></div>
+			
+			</div>
+		</div>
+	</body>
+</html>

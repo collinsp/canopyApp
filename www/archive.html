@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+        <link rel="stylesheet" type="text/css" href="css/index.css" />
+        
+        <script type="text/javascript" src="js/iscroll.js"></script>
+        <style>
+        	ul,li {
+				padding:0;
+				margin:0;
+				border:0;
+			}
+        	#wrapper {
+				position:absolute;
+				z-index:1;
+				//top:45px;
+				//bottom:48px;
+				//top:2.5em;
+				left:0;
+				width:100%;
+				height:80%;
+				background:#488eb3;
+				overflow:auto;
+			}
+			
+			#scroller {
+				position:absolute; z-index:1;
+				-webkit-tap-highlight-color:rgba(0,0,0,0);
+				width:100%;
+				padding:0;
+			}
+			
+			#scroller ul {
+				list-style:none;
+				padding:0;
+				margin:0;
+				width:100%;
+				text-align:left;
+			}
+			
+			#scroller li {
+				padding:0 10px;
+				height:40px;
+				line-height:40px;
+				border-bottom:1px solid #ccc;
+				border-top:1px solid #fff;
+				background-color:#488eb3;
+				font-size:14px;
+			}
+        	
+        	
+        	.block {
+        		border-style:dotted solid;
+        		vertical-align:middle;
+        		width:100%;
+        	}
+        	.canvasImage {
+        		margin:10px;
+        		vertical-align:middle;
+        	}
+        	.descr {
+        		display:inline-block;
+        		vertical-align:middle;
+        	}
+        	.triangle {
+        		width:30px;
+        		margin:10px;
+        		vertical-align:middle;
+        	}
+        	
+        	.textline {
+        		font-size: 1em;
+				font-family: Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif;
+        		border-bottom: 1px dashed black;
+    			text-transform: none;
+    			margin-left:10px;
+        	}
+        	
+        </style>
+        
+    	<script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+    	<script type="text/javascript" charset="utf-8" src="js/Utils.js"></script>
+    	<script type="text/javascript" charset="utf-8" src="js/uploadAll.js"></script>
+        <script type="text/javascript" charset="utf-8">
+			var infotxt, infofile;
+			var num = 0;
+			var entlist;
+			var notUploaded = [];
+			var allFiles = [];
+			var email;
+			
+			var myScroll;
+			function loaded() {
+				myScroll = new iScroll('wrapper');
+				myScroll.refresh();
+			}
+			
+			document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
+			document.addEventListener('DOMContentLoaded', loaded, false);
+    		document.addEventListener("deviceready",onDeviceReady,false);
+    		
+    	function onDeviceReady() {
+    		screen.lockOrientation("landscape");
+				//document.getElementById("show").addEventListener('touchstart', show);
+				//document.getElementById("remove").addEventListener('touchstart', rem);
+				//document.getElementById("index").addEventListener('touchstart', index);
+				//document.getElementById("uploadall").addEventListener('touchstart', uploadAllUnsent);
+				getInfo(readyThePage);
+				
+                function readyThePage() {
+                    infotxt = getInfoText();
+                    infofile = getInfoFile();
+                    email = getEmail();
+                    entlist = getImageList();
+                    for (var i=0; i<entlist.length; i++) {
+                        if (entlist[i].isFile) {
+                            getImage(entlist[i].name);
+                        }
+                    }
+                }
+    		}
+    		
+			function getImage(name) {
+				var dir = getRootDir();
+				dir.getFile(name, {create: false}, imgSuccess, fail);
+			}
+			
+			function imgSuccess(image) {
+					var img = image.name;
+					var path = image.fullPath;
+					image.getMetadata(function(meta) {
+						var date = meta.modificationTime;
+						createBlock(img, path, image, date, num);
+						}, fail);
+			}
+			
+			function createBlock(img, path, file, date, number) {
+				var name = getThing("name", img);
+				var percent = getThing("", img);
+				var res = img.substring(0, 4);
+				if(res == "mask") name="mask";
+				
+				if (name==null) {
+					file.remove(function(){}, function(){alert("Failed to remove null image.");});
+				}
+				else if(name=="mask") {}
+				else {
+					var up = getThing("upload", img);
+					if (up == "n")
+						notUploaded.push(file);
+					allFiles.push(file);
+					
+					var div=document.createElement("div");
+					var scale = .05;
+					var image = new Image();
+					var w, h;
+					image.onload = function() {
+						w = image.width*scale;
+						h = image.height*scale;
+						div.className = "block";
+						div.innerHTML="";
+						if (up=="n") {
+							div.innerHTML='<img src="../www/img/warning.png" class="triangle" alt="Yellow exclamation point">';
+						}
+						div.innerHTML+=''+
+							'<canvas id="canvas'+number+'" class="canvasImage"></canvas>';
+						div.innerHTML+=''+
+							'<span class="descr"><span class="textline">name: '+name+'</span><br>'+
+							'<span class="textline">coverage: '+percent+'</span><br>'+
+							'<span style="margin-left:10px;">date: '+date+'</p></span></span>';
+						
+						div.onclick = function() {
+							localStorage.imgName = img;
+							window.location = "photoDetails.html";
+						};
+						
+						document.getElementById("scroll-content").appendChild(div);
+						
+						var rect = div.getBoundingClientRect();
+						var divy = rect.top;
+						
+						var canvas=document.getElementById("canvas"+number);
+						var context = canvas.getContext("2d");
+						canvas.width = w;
+						canvas.height = h;
+	 					context.drawImage(image, 0, 0, w, h);
+						
+						canvas.style.border = "1px solid";
+						
+						//var newheight=document.getElementById('scroll-content').offsetHeight + div.offsetHeight;
+						//document.getElementById('scroll-content').style.height=newheight+'px';
+						myScroll.refresh();
+					}
+					image.src=path;
+					num++;
+				}
+			}
+			
+			function getThing(thing, name) {
+				var tag = "a"+name+thing;
+				return extractText(tag, infotxt);
+			}
+    		
+			function uploadAllUnsent() {
+				if(checkEmail==1) {
+					if (confirm("Your settings haven't been set! Would you like to set them now?"))
+						window.location = "settings.html";
+				}
+				else
+					uploadList(notUploaded);
+			}
+			function uploadAll() {
+				if(checkEmail==1) {
+					if (confirm("Your settings haven't been set! Would you like to set them now?"))
+						window.location = "settings.html";
+				}
+				else
+					uploadList(allFiles);
+			}
+			function uploadList(list) {
+				var count=1;
+				var attachList=[];
+				var emailBody="";
+				if (checkSettings() == 1) {
+					alert("Your settings haven't been set!");
+				}
+				else {
+					for (var i=0; i<list.length; i++) {
+						if (list[i].isFile)
+							emailBody=emailBody+readyFileForUpload(list[i]);
+					}
+					
+					window.plugin.email.open({
+						to: [email],
+						subject: 'CanopyApp Pictures',
+						body: emailBody,
+						attachments: attachList
+					});
+				}
+				
+				function checkSettings() {
+					email = email.trim();
+					if (email == " ")
+						email = null;
+					if (email == null || email == undefined || email == "")
+						return 1;
+					else
+						return 0;
+				}
+				
+				function readyFileForUpload(file) {
+					var name = getThing("name", file.name);
+					var maskname = "mask-"+file.name;
+					maskname = maskname.replace(/.jpg/g , "");
+					maskname = maskname+".png";
+					
+					var ret = "--"+file.name+"--\nName: "+name+"\n";
+					
+					file.getMetadata(function(meta) {
+    					var date=meta.modificationTime;
+    					ret = ret+"Date: "+date+"\n";}, fail);
+					
+					var dir = getRootDir();
+					dir.getFile(maskname, {create: false}, maskSuccess, function(){});
+					function imgFail(er) {
+						alert("Failed to fetch mask data: "+er.code);
+					}
+					function maskSuccess(m) {
+						var p = m.fullPath.replace('file:/', 'absolute:');
+						attachList.push(p);
+					}
+					ret = ret+
+						"GPS: "+getThing('gps', file.name)+"\n"+
+						"Percent: "+getThing('', file.name)+"\n"+
+						"Comment: "+getThing('comm', file.name)+"\n\n";
+					var p = file.fullPath.replace('file:/', 'absolute:');
+					attachList.push(p);
+					count++;
+					uploaded(file);
+					return ret;
+				}
+				function uploaded(file) {
+					infofile.createWriter(
+						function (writer) {
+							writer.onwrite = function(evt) {
+								console.log("Write Success");
+							};
+							n = "a"+file.name;
+							writer.seek(infotxt.indexOf("<"+n+"upload>"));
+							var strEnd = infotxt.substring(getEndUpload(), infotxt.length);
+							writer.write("<"+n+"upload>y</"+n+"upload>"+strEnd);
+							writer.onwriteend = function(evt) {
+								if (count==list.length)
+									window.location = "archive.html";
+							}
+							
+							function getEndUpload() {
+								var s = "</"+n+"upload>";
+								var e = infotxt.indexOf(s);
+								return (e+s.length);
+							}
+						}, fail);
+				}
+			}
+			
+			function exportData() {
+				if(email==null) alert("Your settings haven't been set! Cannot export.");
+				else window.location = "CSVExport.html";
+			}
+    		function index() {
+    			window.location = "index.html";
+    		}
+    		function show() {
+    			alert(infotxt);
+    		}
+    		function rem() {
+				if (confirm("This will delete all of your images and settings, resetting everything!\nAre you sure you want to continue?")) {
+	    			for (var i=0; i<entlist.length; i++) {
+	    				if (entlist[i].isDirectory)
+	    					entlist[i].removeRecursively(function() {}, function() {});
+	    				entlist[i].remove(function() {}, function() {});
+	    			}
+	    			window.location = "index.html";
+    			}
+    		}
+    		
+        </script>
+        
+        <title>Archive</title>
+    </head>
+    <body>
+    	<div class="topbar" style="vertical-align:middle; display:inline-block;">
+			<!--<button type="button" id="show" onclick="show()">show info</button>-->
+			
+			<button type="button" style="float:left; height:100%;" id="index" onclick="index()">menu</button>
+			<h1 style="font-size:2em;">archive</h1>
+		</div>
+    	<div id="wrapper"><ul>
+    		<li><div id="scroll-content" style="height:100%; width:100%;"></div></li>
+    		<div style="text-align:center;">
+				<button type="button" style="width:100%; height:3em; font-size:1em;" id="export" onclick="exportData()">email csv</button>
+				<br>
+				<button style="width:100%; height:3em; font-size:1em;" onclick="uploadAll()">email all</button>
+				<br>
+				<button type="button" id="uploadall" style="width:100%; height:3em; font-size:1em;" onclick="uploadAllUnsent()">email all <img src="../www/img/warning.png" style="height:1em; vertical-align:middle;"> unsent</button>
+				<br>
+				<button type="button" style="width:100%; height:3em; font-size:1em;" id="remove" onclick="rem()">delete all</button>
+			</div>
+		</ul></div>
+	</body>
+</html>

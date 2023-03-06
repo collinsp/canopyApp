@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="format-detection" content="telephone=no" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+		<link rel="stylesheet" type="text/css" href="css/index.css" />
+		
+		<script type="text/javascript" src="js/iscroll.js"></script>
+		<style>
+			ul,li {
+				padding:0;
+				margin:0;
+				border:0;
+			}
+        	#wrapper {
+				position:absolute; z-index:1;
+				top:45px; bottom:48px; left:0;
+				width:100%;
+				height:100%;
+				background:#488eb3;
+				overflow:auto;
+			}
+			
+			#scroller {
+				position:absolute; z-index:1;
+				-webkit-tap-highlight-color:rgba(0,0,0,0);
+				width:100%;
+				padding:0;
+			}
+			
+			#scroller ul {
+				list-style:none;
+				padding:0;
+				margin:0;
+				width:100%;
+				text-align:left;
+			}
+			
+			#scroller li {
+				padding:0 10px;
+				height:40px;
+				line-height:40px;
+				border-bottom:1px solid #ccc;
+				border-top:1px solid #fff;
+				background-color:#488eb3;
+				font-size:14px;
+			}
+		</style>
+		
+		<script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+		<script type="text/javascript" src="js/Utils.js"></script>
+		<script type="text/javascript" charset="utf-8">
+			var email, csvString;
+			var imageList;
+			
+			var myScroll;
+			function loaded() {
+				myScroll = new iScroll('wrapper', {
+					onBeforeScrollStart: function (e) {
+						var target = e.target;
+						while (target.nodeType != 1) target = target.parentNode;
+						if (target.tagName != 'SELECT' && target.tagName != 'INPUT' && target.tagName != 'TEXTAREA') //without this, iScroll prevents input from being edited
+							e.preventDefault();
+						}
+				});
+				var end=document.getElementById('csvblock');
+				var newheight=document.getElementById('thing').offsetHeight + end.offsetHeight;
+				document.getElementById('thing').style.height=newheight+'px';
+				
+				newheight=document.getElementById('thing').offsetHeight+300;
+				document.getElementById('thing').style.height=newheight+'px';
+				myScroll.refresh();
+			}
+			
+			function setRows() {
+				var textarea=document.getElementById('csvblock');
+				var newrows=textarea.value.match(/\n/g).length + 10;
+				textarea.rows=newrows;
+				
+				var newheight=document.getElementById('thing').offsetHeight + textarea.offsetHeight;
+				document.getElementById('thing').style.height=newheight+'px';
+				myScroll.refresh();
+			}
+			
+			document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
+			document.addEventListener('DOMContentLoaded', loaded, false);
+			document.addEventListener("deviceready",onDeviceReady,false);
+			
+			function onDeviceReady() {
+    		screen.lockOrientation("landscape");
+				getInfo(getReady);
+                function getReady() {
+                    email=getEmail();
+                    imageList=getImageList();
+                    populateCSV();
+                }
+			}
+			
+			//gets the details of the images, puts them into the editable text area
+			function populateCSV() {
+				csvString="";
+				var block = document.getElementById("csvblock");
+				block.readOnly = false;
+				for (var i=0; i<imageList.length; i++) {
+					if (imageList[i].isFile) {
+						if(imageList[i].name!=null) {
+							var res = imageList[i].name.substring(0, 4);
+							if(res!="mask")
+								getDetails(imageList[i].name);
+						}
+					}
+				}
+				block.value=csvString;
+				setRows();
+				
+				function getDetails(imgname) {
+					//FORMAT: name, date, location, percent
+					csvString=csvString+getPhotoName(imgname)+",";
+					getDate(imgname);
+					csvString=csvString+getPhotoGPS(imgname)+",";
+					csvString=csvString+getPhotoPercent(imgname)+"\n";
+					block.rows=block.rows+1;
+					
+					function getDate(imgname) {
+						window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fileSys) {
+							fileSys.root.getDirectory("canopyApp", {create:false},
+								function(directory) {
+									directory.getFile(imgname, {create: false}, imgSuccess, imgFail);
+								}, imgFail);}, 
+							imgFail);
+		
+						function imgSuccess(img) {
+							var date;
+							img.getMetadata(function(meta) {
+								date=meta.modificationTime;
+								returnDate(date);
+							}, fail);
+							function returnDate(d) {
+								csvString=csvString+d+",";
+							}
+						}
+						function imgFail(e) {
+							alert("Failed to fetch image date: "+e.message);
+						}
+					}
+				}
+			}
+			
+			//saves the data in the text area to a file, emails that file
+			function emailCSV() {
+				var currDate = new Date(); 
+				var datetime = (currDate.getMonth()+1) + "/"
+	                + currDate.getDate() + "/" 
+	                + currDate.getFullYear() + " @ "  
+	                + currDate.getHours() + ":"  
+	                + currDate.getMinutes() + ":" 
+	                + currDate.getSeconds();
+				var emailBody = "Your CSV data is attached. Sent on "+datetime+"\n\n";
+				var email = getEmail();
+				var csvFile;
+				
+				window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, gotFileSys, fail);
+				function gotFileSys(fileSys) {
+					fileSys.root.getDirectory("canopyApp", {create:false}, getTheDir, fail);
+				}
+				function getTheDir(directory) {
+					directory.getDirectory("settings", {create:true}, gotSettingsDir, fail);
+				}
+				function gotSettingsDir(dir) {
+					dir.getFile("CanopyAppCSV.csv", {create: true}, fileSuccess, fail);
+				}
+				function fileSuccess(fileEntry) {
+					csvFile = fileEntry;
+					csvFile.createWriter(gotFileWriter, function(){alert("Failed to create file writer.");});
+					function gotFileWriter(writer) {
+						writer.onwrite = function(evt) {
+							var csvSend = csvFile.fullPath.replace('file:/', 'absolute:');
+							
+							//https://github.com/katzer/cordova-plugin-email-composer/tree/f4fcee88c47c7ac642cceb27d3d8b31edd26a8f6#examples
+							window.plugin.email.open({
+								to: [email],
+								subject: 'CanopyApp CSV',
+								body: emailBody,
+								attachments: [csvSend]
+							});
+							window.location="archive.html"; 
+						};
+						writer.seek(0);
+						csvString=document.getElementById("csvblock").value;
+						writer.write(csvString);
+					}
+				}	
+			}
+			function reset() {
+				populateCSV();
+			}
+			function cancel() {
+				window.location = "archive.html";
+			}
+			
+		</script>
+		
+<title>CSV Export</title>
+	</head>
+	<body>
+		<div id="container" class="container">
+			<div class="topbar" style="height:2.75em;">
+				<button style="height:100%; float:left;" id="cancel" onclick="cancel()">cancel</button>
+				<button style="height:100%; float:right;" id="done" onclick="emailCSV()">email</button>
+				<h1 style="font-size:2em;">export csv</h1>
+			</div>
+			
+			<div id="wrapper" style="top:2.75em;"><ul>
+				<li id="thing"><div id="scroll-content" style="height:100%; width:100%; text-align:center;">
+					
+    				<textarea wrap="soft" onchange="setRows()" style="margin-top:.3em; width:90%; display:inline-block; overflow:scroll;" id="csvblock"></textarea>
+					<button class="buttonthing" type="button" style="height:3em; width:100%;" id="reset" onclick="reset()">reset text</button>
+					
+				</div></li>
+			</ul></div>
+			
+		</div>
+	</body>
+</html>

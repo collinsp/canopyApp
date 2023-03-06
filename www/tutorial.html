@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+    <head>
+		<meta charset="utf-8" />
+		<meta name="format-detection" content="telephone=no" />
+		<meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />
+		<link rel="stylesheet" type="text/css" href="css/index.css" />
+		
+		<script type="text/javascript" src="js/iscroll.js"></script>
+        <style>
+        	ul,li {
+				padding:0;
+				margin:0;
+				border:0;
+			}
+        	#wrapper {
+				position:absolute; z-index:1;
+				top:45px; bottom:48px; left:0;
+				width:100%;
+				height:100%;
+				background:#488eb3;
+				overflow:auto;
+			}
+			
+			#scroller {
+				position:absolute; z-index:1;
+				-webkit-tap-highlight-color:rgba(0,0,0,0);
+				width:100%;
+				padding:0;
+			}
+			
+			#scroller ul {
+				list-style:none;
+				padding:0;
+				margin:0;
+				width:100%;
+				text-align:left;
+			}
+			
+			#scroller li {
+				padding:0 10px;
+				height:40px;
+				line-height:40px;
+				border-bottom:1px solid #ccc;
+				border-top:1px solid #fff;
+				background-color:#488eb3;
+				font-size:14px;
+			}
+			
+			.image {
+				width:70%;
+				margin-left:auto;
+				margin-right:auto;
+				display:block;
+			}
+			text1 {
+				display:block;
+			}
+			textblock {
+				text-align:left;
+				padding-right:1em;
+				padding-left:1em;
+			}
+			#theBody {
+				font-size:100%;
+			}
+        </style>
+		
+		
+		<script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+		<script type="text/javascript" charset="utf-8">
+			var myScroll;
+			function loaded() {
+				setTimeout(function () {
+					myScroll = new iScroll('wrapper');
+	   				var end=document.getElementById('theEnd');
+	    			var newheight=document.getElementById('endBlock').offsetHeight + (end.offsetHeight*2);	//sometimes iScroll won't scroll to the
+					document.getElementById('endBlock').style.height=newheight+'px';							//very bottom, and this seems to fix that
+					myScroll.refresh();
+				}, 100);
+			}
+			
+			document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
+			document.addEventListener('DOMContentLoaded', loaded, false);
+			document.addEventListener("deviceready",onDeviceReady,false);
+			
+    	function onDeviceReady() {
+    		screen.lockOrientation("landscape");
+				//if(document.body.clientWidth > 1000)
+				//	document.getElementById("theBody").style.fontSize="x-large"; //scale em's properly on larger screens
+			}
+			
+        	function index() {
+        		window.location = "index.html";
+        	}
+		</script>
+		
+		<title>Tutorial</title>
+	</head>
+	<body style="height:100%; text-align:center;" id="theBody">
+		<div class="topbar" style="display:inline-block;">
+			<button type="button" id="index" style="float:left; height:100%;" onclick="index()">menu</button>
+			<h1 style="font-size:2em;">tutorial</h1>
+		</div>
+    	<div id="wrapper" style="top:5em;"><ul>
+    		<li id="endBlock"><div id="scroll-content" style="width:100%;">
+    		
+	    				<text1>step 1: taking a photo</text1>
+	    				<textblock>first, touch the "take photo" button on the main menu. then, you'll find yourself on this page:</textblock>
+	    				<img src="img/1.jpg" class="image">
+	    				<textblock>the image in the center is a gyroscope, which will help you level the device. point it up, or, if you have a two-way camera, down, and get the red dot
+	    				to the center of the gyroscope. keeping the dot in the center will open the camera automatically. you can also skip this process</textblock>
+	    					<br><br>
+						<text1>step 2: creating the mask</text1>
+						<textblock style="text-align:center;">after you've taken the photo, you'll be taken to the mask creation page</textblock>
+						<img src="img/2.jpg" class="image">
+						<textblock>you can either create the mask or skip this step. to start creating the mask, touch some of the canopy colors. it tends to be easier if the darker colours are selected first. to skip, press "save"</textblock>
+							<br>
+						<img src="img/3.jpg" class="image">
+						<textblock>the touched points will be outlined by a red box, as shown here. the "brush" can be made bigger by changing the number at the right or pressing the + and - buttons. press "process selection" on the right to generate the mask</textblock>
+							<br>
+						<img src="img/4.jpg" class="image">
+						<textblock>as you can see, not much of the canopy was masked out. we can fix that by increasing the sensitivity</textblock>
+							<br>
+						<img src="img/5.jpg" class="image">
+						<textblock>by increasing it to 35, more of the canopy has been masked out. this is what we want, so we press the "next" button to set it</textblock>
+							<br>
+						<img src="img/6.jpg" class="image">
+						<textblock>repeat this process until you've nearly masked the entire canopy.</textblock>
+							<br><br>
+						<text1>step 3: organizing your photos</text1>
+						<textblock style="text-align:center;">when you're done with the mask or you skipped processing, you'll find yourself here...</textblock>
+						<img src="img/7.jpg" class="image">
+						<textblock>this page shows all the details about your photos and allows you to delete, email them or remask them, if you're not happy with the first mask or skipped the process the first time around.
+						the email button will email your photo and the mask to your email, specified in the settings page, along with all of its associated details.
+						to see the mask you created, click the "show mask" button. when you're done, click "save" or "cancel." note that cancel won't save any names, gps values or comments
+						you've entered.
+							<br>
+						this picture has the default values for its name and comments, and finding its gps coordinates failed. if you're still at the picture site, you can press "get current gps"
+						to try grabbing your coordinates again</textblock>
+							<br>
+						<textblock>next is the archive page. this is where all your photos are stored. clicking on any block of information will bring you to that photo's details page.
+						the yellow exclamation marks mean that the photo has not been uploaded. to quickly upload all of the unuploaded photos, simply click the "upload all" button.
+						if you'd like to export all of your data to CSV format, there's a button for that, too. your data will be displayed for you before you email it, so you can double-check its accuracy
+							<br>
+						when you're done browsing your photos, press the index button</textblock>
+							<br><br>
+						<text1>step 4: fixing your settings</text1>
+						<textblock>you'll find yourself back on the main menu. from here, press settings.</textblock><br>
+						<textblock>on the settings page, you can specify your email address and what you'd like the default photo name to be. you can also automatically skip the analysis process to do at a later time</textblock>
+						<br>
+						<text1 id="theEnd">now you know the basics! go forth and conquer!</text1><br><br>
+					
+			</div></li>
+    	</ul></div>
+    		
+	</body>
+</html>
+
+
+
+
+
+

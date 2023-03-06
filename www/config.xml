@@ -1,0 +1,64 @@
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="edu.unh.sr.canopyapp" version="0.0.2" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>CanopyApp</name>
+    <description>
+        A digital densiometer app with built-in image analysis capability
+    </description>
+    <author email="AUTHOREMAILHERE" href="WEBSITEHERE">
+      AUTHORNAMEHERE
+    </author>
+    <access origin="*" />
+    <preference name="fullscreen" value="false" />
+    <preference name="webviewbounce" value="true" />
+    <preference name="android-windowSoftInputMode" value="stateVisible|adjustResize" />
+
+    <icon src="res/icon/BigIcon.png" />
+
+    <platform name="android">
+        <!-- you can use any density that exists in the Android project -->
+        <splash src="res/screen/splash-land-hdpi.jpg" density="land-hdpi"/>
+        <splash src="res/screen/splash-land-ldpi.jpg" density="land-ldpi"/>
+        <splash src="res/screen/splash-land-mdpi.jpg" density="land-mdpi"/>
+        <splash src="res/screen/splash-land-xhdpi.jpg" density="land-xhdpi"/>
+
+        <splash src="res/screen/splash-port-hdpi.jpg" density="port-hdpi"/>
+        <splash src="res/screen/splash-port-ldpi.jpg" density="port-ldpi"/>
+        <splash src="res/screen/splash-port-mdpi.jpg" density="port-mdpi"/>
+        <splash src="res/screen/splash-port-xhdpi.jpg" density="port-xhdpi"/>
+    </platform>
+
+    <platform name="ios">
+        <!-- images are determined by width and height. The following are supported -->
+        <splash src="res/screen/splash-port-mdpi.jpg" width="320" height="480"/>
+        <splash src="res/screen/splash-port-mdpi-2x.jpg" width="640" height="960"/>
+        <splash src="res/screen/splash-port-ipad.jpg" width="768" height="1024"/>
+        <splash src="res/screen/screen-ipad-portrait-2x.png" width="1536" height="2048"/>
+        <splash src="res/screen/screen-ipad-landscape.png" width="1024" height="768"/>
+        <splash src="res/screen/screen-ipad-landscape-2x.png" width="2048" height="1536"/>
+        <splash src="res/screen/screen-iphone-port-2x.png" width="640" height="1136"/>
+        <splash src="res/screen/screen-port-667.png" width="750" height="1334"/>
+        <splash src="res/screen/screen-port-736.png" width="1242" height="2208"/>
+        <splash src="res/screen/screen-land-736.png" width="2208" height="1242"/>
+    </platform>
+
+    <platform name="wp8">
+        <!-- images are determined by width and height. The following are supported -->
+        <splash src="res/screen/wp8-port.jpg" width="768" height="1280"/>
+    </platform>
+
+    <platform name="windows8">
+        <!-- images are determined by width and height. The following are supported -->
+        <splash src="res/screen/windows8-land.png" width="620" height="300"/>
+    </platform>
+
+    <preference name="SplashScreenDelay" value="10000" />
+    
+    <plugin name="Camera" value="org.apache.cordova.CameraLauncher" />
+    <plugin name="Accelerometer" value="org.apache.cordova.AccelListener" />
+    <plugin name="email" value="de.appplant.cordova.plugin.emailcomposer"/>
+	<feature name="http://api.phonegap.com/1.0/device" />
+	<feature name="http://api.phonegap.com/1.0/camera"/>
+	<feature name="http://api.phonegap.com/1.0/file"/>
+	<feature name="http://api.phonegap.com/1.0/media"/>
+	<feature name="http://api.phonegap.com/1.0/geolocation" />
+</widget>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, target-densitydpi=medium-dpi, user-scalable=0" />
+        <!--<meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width, height=device-height, target-densitydpi=device-dpi" />-->
+        <link rel="stylesheet" type="text/css" href="css/index.css" />
+        
+        <style>
+        	button.fullbutton {
+        		display:block;
+        		height:20%;
+        		font-size:25px;
+        	}
+        	div.topbar {
+			    text-align:center;
+			    vertical-align:middle;
+			    height:18%;
+        	}
+        </style>
+        
+        <script type="text/javascript" charset="utf-8" src="cordova.js"></script>
+        <script type="text/javascript" charset="utf-8">
+        	document.addEventListener("deviceready",onDeviceReady,false);
+    		
+    		function onDeviceReady() {
+    			screen.lockOrientation("landscape");
+					//document.getElementById("take").addEventListener('touchstart', takePhoto());
+					//document.getElementById("settings").addEventListener('touchstart', settings());
+					//document.getElementById("archive").addEventListener('touchstart', archive());
+					//alert("index");
+    		}
+        
+    	    function takePhoto() {
+	        	window.location = "takePhoto.html";
+	        	<!--window.location = "test.html";-->
+        	}
+    	    function settings() {
+	        	window.location = "settings.html";
+    	    }
+	        function archive() {
+        		window.location = "archive.html";
+        	}
+        	function tutorial() {
+        		window.location = "tutorial.html";
+        	}
+        	
+			function test() {
+				window.location = "magicWand.html";
+			}
+        </script>
+        
+        <title>Canopy App</title>
+    </head>
+    <body>
+		<div id="container" class="container">
+			<div class="topbar">
+				<span class="header" style="font-size:50px; top:20px;">canopy app</span>
+			</div>
+			<button type="button" id="take" class="fullbutton" onclick="takePhoto()">take photo</button>
+			<button type="button" id="settings" class="fullbutton" onclick="settings()">settings</button>
+			<button type="button" id="archive" class="fullbutton" onclick="archive()">archive</button>
+			<button type="button" id="tutorial" class="fullbutton" onclick="tutorial()">tutorial</button>
+			<!--<button type="button" id="tutorial" class="fullbutton" onclick="test()">test</button>-->
+		</div>
+    </body>
+</html>
